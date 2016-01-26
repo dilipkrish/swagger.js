@@ -287,6 +287,43 @@ describe('operations', function () {
   });
 
   describe('should correctly sanitize query parameters conforming to RFC 6570', function() {
+
+    it('should strip any templated single query parameters', function() {
+      var op = new Operation({}, 'http', 'test', 'get', '/some-path/{path}/test{?q1}',
+          {parameters: []},
+          {}, {}, new auth.SwaggerAuthorizations());
+      var url = op.stripQueryStringVariables('/some-path/{path}/test{?q1}');
+
+      expect(url).toBe('/some-path/{path}/test');
+    });
+
+    it('should strip any templated multiple query parameters', function() {
+      var op = new Operation({}, 'http', 'test', 'get', 'http://someuri.org/{path}/test{?q1,q2}',
+          {parameters: []},
+          {}, {}, new auth.SwaggerAuthorizations());
+      var url = op.stripQueryStringVariables('/some-path/{path}/test{?q1,q2}');
+
+      expect(url).toBe('/some-path/{path}/test');
+    });
+
+    it('should strip any templated single query parameters', function() {
+      var op = new Operation({}, 'http', 'test', 'get', 'http://someuri.org/{path}/test{?q1}',
+          {parameters: []},
+          {}, {}, new auth.SwaggerAuthorizations());
+      var url = op.stripQueryStringVariables('http://someuri.org/{path}/test{?q1}');
+
+      expect(url).toBe('http://someuri.org/{path}/test');
+    });
+
+    it('should strip any templated single query parameters', function() {
+      var op = new Operation({}, 'http', 'test', 'get', '/some-path/{path}/test{?q1}',
+          {parameters: []},
+          {}, {}, new auth.SwaggerAuthorizations());
+      var url = op.stripQueryStringVariables('http://someuri.org/{path}/test{?q1}');
+
+      expect(url).toBe('http://someuri.org/{path}/test');
+    });
+
     it('when only initiating query params are present', function() {
       var parameters = [
         {in: 'path', name: 'path', type: 'string'},
