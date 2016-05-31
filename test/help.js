@@ -59,6 +59,53 @@ describe('help options', function () {
     expect(curl).toBe('curl -X GET --header \'Accept: application/json\' \'http://localhost/path?api_key=abc123\'');
   });
 
+  it('does not duplicate api_key in query param per #624 when url is rfc6550 compliant', function () {
+    var apiKey = new auth.ApiKeyAuthorization('api_key', 'abc123', 'query');
+    var auths = new auth.SwaggerAuthorizations({'api_key': apiKey});
+
+    var op = new Operation({},
+        'http',
+        'test',
+        'get',
+        '/path{?size,page}',
+        {summary: 'test operation'}, {}, {}, auths);
+    var curl = op.asCurl({});
+    // repeat to ensure no change
+    curl = op.asCurl({});
+
+    expect(curl).toBe('curl -X GET --header \'Accept: application/json\' \'http://localhost/path?api_key=abc123\'');
+  });
+
+  it('does not duplicate api_key in query param per #624 when url is rfc6550 compliant and has params', function () {
+    var apiKey = new auth.ApiKeyAuthorization('api_key', 'abc123', 'query');
+    var auths = new auth.SwaggerAuthorizations({'api_key': apiKey});
+    var parameters = [
+      {
+        in: 'query',
+        name: 'size',
+        type: 'integer',
+        format: 'int32'
+      },
+      {
+        in: 'query',
+        name: 'page',
+        type: 'integer',
+        format: 'int32'
+      }
+    ];
+    var op = new Operation({},
+        'http',
+        'test',
+        'get',
+        '/path{?size,page}',
+        {parameters: parameters}, {}, {}, auths);
+    var curl = op.asCurl({size: 5, page: 10, api_key: "123"});
+    // repeat to ensure no change
+    curl = op.asCurl({size: 5, page: 10, api_key: "123"});
+
+    expect(curl).toBe('curl -X GET --header \'Accept: application/json\' \'http://localhost/path?size=5&page=10&api_key=abc123\'');
+  });
+
   it('prints a curl statement with headers', function () {
     var parameters = [{
       in: 'header',
