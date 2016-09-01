@@ -980,6 +980,15 @@
               "paramType": "query",
               "allowMultiple": false,
               "description": "Restrict to the supplied relatinship types"
+            },
+            {
+              "required": true,
+              "dataType": "string",
+              "name": "format",
+              "defaultValue": "json",
+              "paramType": "path",
+              "allowMultiple": false,
+              "description": "Restrict to the supplied relationship types"
             }
           ],
           "summary": "Given a word as a string, returns relationships from the Word Graph"

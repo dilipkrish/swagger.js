@@ -376,7 +376,7 @@ describe('swagger resolver', function () {
     api.resolve(spec, 'http://localhost:8000/v2/petstore.json', function (spec, unresolved) {
       expect(Object.keys(unresolved).length).toBe(0);
       test.object(spec);
-      var schema = spec.definitions['new_model'].properties.subclass;
+      var schema = spec.definitions.new_model.properties.subclass;
 
       expect(schema['x-composed']).toBe(true);
       expect(Array.isArray(schema['x-resolved-from'])).toBe(true);
@@ -394,6 +394,75 @@ describe('swagger resolver', function () {
       expect(name.type).toBe('string');
       expect(name['x-resolved-from']).toBe('self');
 
+      done();
+    });
+  });
+
+  it('tests issue #783', function (done) {
+    var api = new Resolver();
+    var spec = {
+      paths: {
+        '/foo': {
+          get: {
+            parameters: [],
+            responses: {
+              200: {
+                schema: {
+                  allOf: [
+                    {
+                      $ref: '#/definitions/PaginationHeader'
+                    }, {
+                      type: 'object',
+                      properties: {
+                        result: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/definitions/User'
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      definitions: {
+        'PaginationHeader': {
+          properties: {
+            offset: {
+              type: 'integer',
+              format: 'int32'
+            },
+            limit: {
+              type: 'integer',
+              format: 'int32'
+            }
+          }
+        },
+        'User': {
+          properties: {
+            name: {
+              type: 'string'
+            }
+          }
+        }
+      }
+    };
+    api.resolve(spec, 'http://localhost:8000/v2/petstore.json', function (spec, unresolved) {
+      expect(Object.keys(unresolved).length).toBe(0);
+      test.object(spec);
+      test.object(spec.paths['/foo'].get.responses[200]);
+      var schema = spec.definitions.inline_model;
+
+      expect(schema.properties.offset.type).toBe('integer');
+      expect(schema.properties.offset.format).toBe('int32');
+      expect(schema.properties.limit.type).toBe('integer');
+      expect(schema.properties.limit.format).toBe('int32');
+      expect(schema.properties.result.type).toBe('array');
+      expect(schema.properties.result.items.$ref).toBe('#/definitions/User');
       done();
     });
   });
