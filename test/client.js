@@ -7,15 +7,19 @@ var expect = require('expect');
 var petstoreRaw = require('./spec/v2/petstore.json');
 var SwaggerClient = require('..');
 var auth = require('../lib/auth');
+var fs = require('fs');
+var md5 = require('md5-file');
 
 /* jshint ignore:start */
 var mock = require('./mock');
 var instance;
+var testBlobMD5;
 /* jshint ignore:end */
 
 describe('SwaggerClient', function () {
   /* jshint ignore:start */
   before(function (done) {
+    testBlobMD5 = md5.sync('test/spec/v2/blob/image.png');
     mock.petstore(done, function (petstore, server){
       instance = server;
     });
@@ -375,6 +379,81 @@ describe('SwaggerClient', function () {
         });
       }
     });
+  });
+
+  it('should accept a timeout', function(done) {
+    var timeoutValue = 1000;
+    var client = new SwaggerClient({
+      spec: petstoreRaw,
+      timeout: timeoutValue,
+      success: function () {
+        expect(client.timeout).toBe(timeoutValue);
+        expect(client.fetchSpecTimeout).toBe(timeoutValue);
+        done();
+      }
+    });
+  });
+
+  it('should accept a timeout for fetching a spec', function(done) {
+    var timeoutValue = 1000;
+    var client = new SwaggerClient({
+      spec: petstoreRaw,
+      fetchSpecTimeout: timeoutValue,
+      success: function () {
+        expect(client.timeout).toBe(null);
+        expect(client.fetchSpecTimeout).toBe(timeoutValue);
+        done();
+      }
+    });
+  });
+
+  it('should prefer fetchSpecTimeout over timeout when both are specified', function(done) {
+    var timeoutValue = 1000;
+    var fetchSpecTimeoutValue = 2000;
+    var client = new SwaggerClient({
+      spec: petstoreRaw,
+      timeout: timeoutValue,
+      fetchSpecTimeout: fetchSpecTimeoutValue,
+      success: function () {
+        expect(client.timeout).toBe(timeoutValue);
+        expect(client.fetchSpecTimeout).toBe(fetchSpecTimeoutValue);
+        done();
+      }
+    });
+  });
+
+  it('should use a timeout when fetching a spec', function (done) {
+    var client = new SwaggerClient({
+      url: 'http://localhost:8000/v2/petstore.json',
+      fetchSpecTimeout: 1,
+      success: function () {
+        expect().toExist('Fetch spec timeout was not applied');
+        done();
+      },
+      failure: function (message) {
+        expect(message).toBe('Request timed out after 1ms');
+        done();
+      }
+    });
+  });
+
+  it('should use a timeout when making an operation request', function (done) {
+    var timeout = 1;
+    new SwaggerClient({
+      url: 'http://localhost:8000/v2/petstore.json',
+      usePromise: true,
+      timeout: timeout,
+      // pass null to avoid false failures when fetching spec
+      fetchSpecTimeout: null
+    }).then(function (client) {
+      client.pet.getPetById({petId: 1})
+        .then(function (pet) {
+          expect().toExist('Operation request timeout was not applied')
+        }).catch(function (err) {
+          expect(err.errObj.message).toBe('timeout of 1ms exceeded', 'Operation request timeout was not applied')
+          done();
+        });
+    }).catch(done);
   });
 
   it('should use a responseInterceptor', function(done) {
@@ -1232,7 +1311,7 @@ describe('SwaggerClient', function () {
     });
   });
 
-  it('should post a multipart array', function(done) {
+  it('should post a multipart array with csv format', function(done) {
     var spec = {
       paths: {
         '/foo': {
@@ -1245,6 +1324,7 @@ describe('SwaggerClient', function () {
                 in: 'formData',
                 name: 'name',
                 type: 'array',
+                collectionFormat: 'csv',
                 items: {
                   type: 'string'
                 }
@@ -1267,6 +1347,51 @@ describe('SwaggerClient', function () {
           .catch(function () {
             done();
           });
+      var curl = client.test.mypost.asCurl({name: ['tony', 'tam']});
+      expect(curl).toBe("curl -X POST --header 'Content-Type: multipart/form-data' --header 'Accept: application/json' -F name=tony,tam  'http://localhost:8080/foo'");
+    }).catch(function(exception) {
+      done(exception);
+    });
+  });
+
+  it('should post a multipart array with multi format', function(done) {
+    var spec = {
+      paths: {
+        '/foo': {
+          post: {
+            operationId: 'mypost',
+            consumes: ['multipart/form-data'],
+            tags: [ 'test' ],
+            parameters: [
+              {
+                in: 'formData',
+                name: 'name',
+                type: 'array',
+                collectionFormat: 'multi',
+                items: {
+                  type: 'string'
+                }
+              }
+            ]
+          }
+        }
+      }
+    };
+
+    new SwaggerClient({
+      url: 'http://localhost:8080/petstore.yaml',
+      spec: spec,
+      usePromise: true
+    }).then(function(client) {
+      client.test.mypost({name: ['tony', 'tam']})
+        .then(function () {
+          done('it failed');
+        })
+        .catch(function () {
+          done();
+        });
+      var curl = client.test.mypost.asCurl({name: ['tony', 'tam']});
+      expect(curl).toBe("curl -X POST --header 'Content-Type: multipart/form-data' --header 'Accept: application/json' -F name=tony -F name=tam  'http://localhost:8080/foo'");
     }).catch(function(exception) {
       done(exception);
     });
@@ -1278,11 +1403,58 @@ describe('SwaggerClient', function () {
       usePromise: true
     }).then(function(client) {
       var models = client.models;
-      console.log(models.SuperErrorModel.createJSONSample());
-      console.log(models.SuperErrorModel.getMockSignature());
-      console.log(models.SuperErrorModel.getSampleValue());
-
       done();
+    }).catch(function(exception) {
+      done(exception);
+    });
+  });
+
+
+  it('should read a blob', function(done) {
+    var spec = {
+      paths: {
+        '/v2/blob/image.png': {
+          get: {
+            operationId: 'getBlob',
+            produces: ['image/png'],
+            tags: [ 'test' ],
+            parameters: [],
+            responses: {
+              default: {
+                description: 'ok',
+                schema: {
+                  type: 'string',
+                  format: 'byte'
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    new SwaggerClient({
+      url: 'http://localhost:8000',
+      spec: spec,
+      usePromise: true
+    }).then(function(client) {
+      client.test.getBlob({})
+        .then(function (response) {
+          console.log('horray');
+          var filename = './file.tmp';
+          fs.writeFile(filename, response.data, function(err) {
+            if(err) {
+              return done('it failed');
+            }
+            var hash = md5.sync(filename);
+            expect(hash).toBe(testBlobMD5);
+            fs.unlinkSync(filename);
+            done();
+          });
+        })
+        .catch(function () {
+          done('it failed');
+        });
     }).catch(function(exception) {
       done(exception);
     });
