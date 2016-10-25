@@ -790,7 +790,7 @@ describe('operations', function () {
     expect(body.lang[1]).toBe('de');
 
     console.log(body);
-  })
+  });
 
   // options.timeout
   it('should use timeout specified on client by default', function () {
@@ -802,7 +802,7 @@ describe('operations', function () {
                                    {}, {}, new auth.SwaggerAuthorizations());
     var result = op.execute({}, {mock: true});
 
-    expect(result.timeout).toBe(1, "Operation.execute timeout was not applied from client");
+    expect(result.timeout).toBe(1, 'Operation.execute timeout was not applied from client');
   });
   //
   it('should prefer timeout passed in execute options over client', function () {
@@ -817,6 +817,6 @@ describe('operations', function () {
       timeout: 2
     });
 
-    expect(result.timeout).toBe(2, "Operation.execute timeout was not applied from options");
-  })
+    expect(result.timeout).toBe(2, 'Operation.execute timeout was not applied from options');
+  });
 });
